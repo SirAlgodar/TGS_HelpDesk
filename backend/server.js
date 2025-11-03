@@ -11,7 +11,7 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
+const CORS_ORIGINS = (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',');
 const SLA_RESPONSE_HOURS = parseInt(process.env.SLA_RESPONSE_HOURS || '4', 10);
 const SLA_RESOLUTION_HOURS = parseInt(process.env.SLA_RESOLUTION_HOURS || '24', 10);
 const WEBHOOK_URL = process.env.WEBHOOK_URL || '';
@@ -27,7 +27,15 @@ const pool = mysql.createPool({
 });
 
 // CORS & JSON
-app.use(cors({ origin: CORS_ORIGIN, credentials: true }));
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow same-origin or no-origin (like curl) and configured origins
+    if (!origin || CORS_ORIGINS.includes(origin)) return cb(null, true);
+    if (origin.startsWith('http://localhost:')) return cb(null, true);
+    return cb(null, false);
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 // Ensure upload directory exists
@@ -54,10 +62,16 @@ function addHours(date, hours) {
 }
 
 async function sendWebhook(event, payload) {
-  if (!WEBHOOK_URL) return;
+  // Prefer dynamic setting over env var
+  let url = WEBHOOK_URL;
+  try {
+    const [rows] = await pool.query('SELECT v FROM settings WHERE k = ?', ['webhook_outgoing_url']);
+    if (rows[0]?.v) url = rows[0].v;
+  } catch (_) {}
+  if (!url) return;
   try {
     if (typeof fetch === 'function') {
-      await fetch(WEBHOOK_URL, {
+      await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event, payload }),
@@ -145,6 +159,12 @@ async function initDb() {
       mimetype VARCHAR(255) NOT NULL,
       size INT NOT NULL,
       FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB`);
+
+    // Settings key-value store for integrations
+    await conn.query(`CREATE TABLE IF NOT EXISTS settings (
+      k VARCHAR(255) PRIMARY KEY,
+      v TEXT NOT NULL
     ) ENGINE=InnoDB`);
 
     const agentEmail = process.env.DEFAULT_AGENT_EMAIL;
@@ -414,10 +434,76 @@ app.delete('/api/admin/users/:id', authMiddleware, adminOnly, async (req, res) =
   }
 });
 
-// Webhook receiver (incoming)
-app.post('/api/webhooks/incoming', (req, res) => {
-  console.log('Incoming webhook:', req.body);
-  res.json({ received: true });
+// Admin: integração settings
+app.get('/api/admin/settings/integration', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const keys = ['webhook_outgoing_url', 'webhook_incoming_secret', 'api_base_url', 'api_token'];
+    const [rows] = await pool.query('SELECT k, v FROM settings WHERE k IN (?)', [keys]);
+    const out = {};
+    for (const r of rows) out[r.k] = r.v;
+    res.json({ settings: out });
+  } catch (err) {
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+app.put('/api/admin/settings/integration', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const allowed = ['webhook_outgoing_url', 'webhook_incoming_secret', 'api_base_url', 'api_token'];
+    const entries = Object.entries(req.body || {}).filter(([k]) => allowed.includes(k));
+    const conn = await pool.getConnection();
+    try {
+      for (const [k, v] of entries) {
+        await conn.query('REPLACE INTO settings (k, v) VALUES (?, ?)', [k, v ?? '']);
+      }
+      res.json({ ok: true });
+    } finally {
+      conn.release();
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+app.post('/api/admin/settings/integration/test-outgoing', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    let url;
+    if (req.body?.url) url = req.body.url;
+    else {
+      const [rows] = await pool.query('SELECT v FROM settings WHERE k = ?', ['webhook_outgoing_url']);
+      url = rows[0]?.v;
+    }
+    if (!url) return res.status(400).json({ error: 'Missing webhook_outgoing_url' });
+    const payload = { ping: true, at: new Date().toISOString(), system: 'TGS', kind: 'test' };
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'test', payload }),
+    });
+    const text = await resp.text();
+    res.json({ ok: true, status: resp.status, body: text.slice(0, 2048) });
+  } catch (err) {
+    res.status(500).json({ error: 'Webhook test failed', details: err?.message || String(err) });
+  }
+});
+
+// Webhook receiver (incoming) with secret validation
+app.post('/api/webhooks/incoming', async (req, res) => {
+  try {
+    let secret;
+    try {
+      const [rows] = await pool.query('SELECT v FROM settings WHERE k = ?', ['webhook_incoming_secret']);
+      secret = rows[0]?.v;
+    } catch (_) {}
+    if (secret) {
+      const provided = req.headers['x-webhook-secret'] || req.query.secret;
+      if (!provided || provided !== secret) return res.status(403).json({ error: 'Invalid secret' });
+    }
+    console.log('Incoming webhook:', req.body);
+    res.json({ received: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Webhook processing error' });
+  }
 });
 
 (async () => {

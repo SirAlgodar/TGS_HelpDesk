@@ -1,42 +1,121 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --border: #e5e7eb;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --danger: #dc2626;
+  --success: #16a34a;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  color: var(--text);
+  background: var(--bg);
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.app-shell { min-height: 100%; display: flex; flex-direction: column; }
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  width: 100%;
 }
+.brand { font-weight: 600; color: var(--text); }
+.nav { display: flex; gap: 12px; }
+.nav a { color: var(--text); text-decoration: none; padding: 6px 8px; border-radius: 6px; }
+.nav a:hover { background: #f3f4f6; }
+.user-meta { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
+.container { width: 100%; max-width: 1080px; margin: 0 auto; padding: 20px; }
+.page-title { margin: 0 0 12px; font-size: 20px; }
 
 .card {
-  padding: 2em;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
 }
 
-.read-the-docs {
-  color: #888;
+.section { display: grid; gap: 12px; }
+.section-title { margin: 0; font-size: 18px; }
+
+.form { display: grid; gap: 12px; }
+.field { display: grid; gap: 6px; }
+.label { font-size: 13px; color: var(--muted); }
+.input, .textarea, .select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+}
+.textarea { min-height: 120px; }
+
+.actions { display: flex; gap: 8px; align-items: center; }
+.button {
+  appearance: none;
+  border: 1px solid transparent;
+  background: var(--primary);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.button:hover { background: var(--primary-hover); }
+.button.secondary { background: #eef2ff; color: #1e3a8a; }
+.button.secondary:hover { background: #e0e7ff; }
+.button.danger { background: var(--danger); }
+.button.danger:hover { background: #b91c1c; }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.table th, .table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
+.table thead th { background: #f9fafb; font-weight: 600; }
+.table tbody tr:hover { background: #f9fafb; }
+
+.tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.tab { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: #fff; cursor: pointer; }
+.tab[disabled] { background: #eef2ff; color: #1e3a8a; border-color: #dbeafe; }
+
+.helper { font-size: 12px; color: var(--muted); }
+.status-ok { color: var(--success); }
+.status-err { color: var(--danger); }
+
+.login-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.login-card { max-width: 420px; width: 100%; }
+
+/* KPIs */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.kpi-title { font-size: 12px; color: var(--muted); }
+.kpi-value { font-size: 24px; font-weight: 600; color: var(--text); }
+
+@media (max-width: 900px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .kpis { grid-template-columns: 1fr; }
 }
